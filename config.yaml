@@ -1,0 +1,94 @@
+hashtags:
+  - nifty50
+  - sensex
+  - intraday
+  - banknifty
+
+target_tweet_count: 2000
+lookback_hours: 24
+
+scrape:
+  headless: false
+  login_mode: cookies
+  manual_login_timeout_sec: 300
+  window_width: 1400
+  window_height: 900
+  page_load_timeout_sec: 60
+  explicit_wait_sec: 20
+  scroll_pause_sec: 2.5
+  scroll_pause_jitter_sec: 1.5
+  max_idle_scrolls: 18
+  search_tabs:
+    - live
+    - latest
+  use_combined_query: true
+  checkpoint_every: 50
+  login_url: https://x.com/i/flow/login
+  search_base_url: https://x.com/search
+  chrome_binary: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+  chrome_user_data_dir: data/chrome_profile
+
+paths:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  sample_dir: data/samples
+  output_dir: outputs
+  log_dir: logs
+  config_file: config.yaml
+
+analysis:
+  tfidf_max_features: 5000
+  tfidf_ngram_min: 1
+  tfidf_ngram_max: 2
+  time_bucket: 1h
+  bootstrap_samples: 400
+  confidence_level: 0.95
+  plot_sample_size: 1500
+  min_df: 2
+  max_df: 0.9
+  random_seed: 42
+
+lexicon:
+  bullish:
+    - bullish
+    - breakout
+    - upside
+    - rally
+    - surge
+    - long
+    - buy
+    - accumulation
+    - support
+    - strong
+    - moon
+    - green
+    - profit
+    - target
+    - bounce
+    - recovery
+    - higher
+    - strength
+  bearish:
+    - bearish
+    - breakdown
+    - downside
+    - crash
+    - fall
+    - short
+    - sell
+    - distribution
+    - resistance
+    - weak
+    - dump
+    - red
+    - loss
+    - stoploss
+    - sl
+    - panic
+    - lower
+    - weakness
+    - correction
+
+logging:
+  level: INFO
+  format: "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
