@@ -68,10 +68,18 @@ N = tweets, U = unique ids, L = tokens/tweet, F = TF-IDF features, B = bootstrap
 
 ## Current results (this submission snapshot)
 
-- 911 unique tweets collected across two scrape sessions
-- 792 retained after cleaning, dedupe, and 24h filter
-- Mean composite signal ≈ 0.046 (mildly bullish), with hourly CI bands in `outputs/`
-- Further collection was limited by X rate-limiting / empty search renders after sustained scrolling
+- 2237 unique tweets collected across scrape sessions
+- 2134 retained after cleaning/dedupe; 1822 after rolling 24h filter
+- All required hashtag queries covered (`nifty50`, `sensex`, `intraday`, `banknifty`, plus combined/mixed)
+- Composite signal artifacts and CI bands written under `outputs/`
+- Further growth inside the live 24h window was constrained by X rate-limiting
+
+## Data structures
+
+- `OrderedDict` / set of `tweet_id` for O(1) ingest dedupe
+- JSONL append-only checkpoints for crash-safe streaming writes
+- Pandas DataFrame for batch clean/transform; Parquet/ZSTD for columnar storage
+- SciPy/sklearn sparse TF-IDF matrix (float32, feature-capped) for text vectors
 
 ## Risks and mitigations
 

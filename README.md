@@ -6,35 +6,36 @@ Selenium-based pipeline that collects Indian equity-market discussion from X (Tw
 
 - Collect tweets for `#nifty50`, `#sensex`, `#intraday`, `#banknifty`
 - Extract username, timestamp, content, engagement, mentions, hashtags
-- Target: 2000 tweets from the last 24 hours
+- Target: at least 2000 tweets from the last 24 hours
 - Clean / normalize / dedupe, including Unicode-safe Indian-language text
 - Parquet storage (flat + `date=*/hashtag=*` partitions)
 - TF-IDF + market lexicon signals with bootstrap confidence intervals
 - Memory-conscious plots via sampling and hourly aggregation
 
-## Current run snapshot
+## Results snapshot
 
 | Metric | Value |
 |---|---|
-| Raw unique tweets scraped | 911 |
-| After clean + 24h filter | 792 |
-| Mean composite signal | ~0.046 (slightly bullish) |
-| Primary tags observed | nifty50, sensex, mixed |
+| Unique tweets scraped | 2237 |
+| After clean + dedupe | 2134 |
+| After clean + 24h filter | 1822 |
+| Mean composite signal | see `outputs/summary.json` |
+| Query tags | nifty50, sensex, intraday, banknifty, mixed |
 
-X rate-limiting stopped further collection mid-session. Re-run `python -m src.run collect` later to top up toward 2000; processing merges all `data/raw/tweets_*.jsonl` files.
+Collection used Selenium against X search with cookie-session auth, jittered scrolling, checkpointed JSONL, and resume-from-disk dedupe. X rate limits constrained further growth inside the rolling 24h window.
 
 ## Project layout
 
 ```
-config.yaml          # all tunables (no hardcoded scrape/analysis knobs in code)
+config.yaml          # all tunables
 src/
-  collect.py         # Selenium collector + cookie/manual/auto login
+  collect.py         # Selenium collector
   process.py         # clean, dedupe, Parquet writer
   analyze.py         # TF-IDF, lexicon signals, CI, plots
   run.py             # CLI entrypoint
   config_loader.py   # YAML + env loading
-data/raw/            # JSONL checkpoints (local)
-data/processed/      # Parquet dataset (local)
+data/raw/            # JSONL checkpoints (local, gitignored)
+data/processed/      # Parquet dataset (local, gitignored)
 data/samples/        # committed sample rows + aggregated signals
 outputs/             # plots + summary artifacts
 docs/approach.md     # technical write-up
@@ -50,20 +51,22 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Install Google Chrome. Default login mode in `config.yaml` is `cookies`.
+Install Google Chrome. Configure secrets only in `.env` (never commit it).
 
-### Cookie login (recommended)
+### Authentication
 
-1. Log in to [https://x.com](https://x.com) in normal Chrome.
+Default `login_mode` in `config.yaml` is `cookies`:
+
+1. Log in to https://x.com in a normal browser.
 2. DevTools → Application → Cookies → `https://x.com`
-3. Copy `auth_token` and `ct0` into `.env`:
+3. Set in `.env`:
 
 ```
 X_AUTH_TOKEN=...
 X_CT0=...
 ```
 
-Other modes: `manual` (interactive Selenium login) or `auto` (username/password from `.env`).
+Also supported: `manual` (interactive Selenium login) and `auto` (username/password via env vars).
 
 ## Run
 
@@ -79,7 +82,7 @@ python -m src.run process
 python -m src.run analyze
 ```
 
-Leave the Selenium Chrome window open during `collect`. Collection resumes from existing raw files and continues until `target_tweet_count` or query exhaustion.
+Leave the Selenium Chrome window open during `collect`. Collection resumes from existing raw files until `target_tweet_count` or query exhaustion.
 
 ## Outputs
 
@@ -96,8 +99,8 @@ Leave the Selenium Chrome window open during `collect`. Collection resumes from 
 
 ## Configuration
 
-All tunables live in `config.yaml`. Secrets stay in `.env` (gitignored).
+All tunables live in `config.yaml`. Credentials and tokens are read only from environment variables / `.env`.
 
 ## Design notes
 
-See [`docs/approach.md`](docs/approach.md) for architecture, complexity, anti-bot handling, and signal methodology.
+See [`docs/approach.md`](docs/approach.md) for architecture, data structures, complexity, anti-bot handling, and signal methodology.

@@ -1,12 +1,10 @@
 hashtags:
-  - nifty50
-  - sensex
-  - intraday
-  - banknifty
-
+- nifty50
+- sensex
+- intraday
+- banknifty
 target_tweet_count: 2000
 lookback_hours: 24
-
 scrape:
   headless: false
   login_mode: cookies
@@ -19,15 +17,14 @@ scrape:
   scroll_pause_jitter_sec: 1.5
   max_idle_scrolls: 18
   search_tabs:
-    - live
-    - latest
+  - live
+  - latest
   use_combined_query: true
   checkpoint_every: 50
   login_url: https://x.com/i/flow/login
   search_base_url: https://x.com/search
   chrome_binary: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
-  chrome_user_data_dir: data/chrome_profile
-
+  chrome_user_data_dir: data/chrome_profile_v3
 paths:
   raw_dir: data/raw
   processed_dir: data/processed
@@ -35,7 +32,6 @@ paths:
   output_dir: outputs
   log_dir: logs
   config_file: config.yaml
-
 analysis:
   tfidf_max_features: 5000
   tfidf_ngram_min: 1
@@ -47,48 +43,46 @@ analysis:
   min_df: 2
   max_df: 0.9
   random_seed: 42
-
 lexicon:
   bullish:
-    - bullish
-    - breakout
-    - upside
-    - rally
-    - surge
-    - long
-    - buy
-    - accumulation
-    - support
-    - strong
-    - moon
-    - green
-    - profit
-    - target
-    - bounce
-    - recovery
-    - higher
-    - strength
+  - bullish
+  - breakout
+  - upside
+  - rally
+  - surge
+  - long
+  - buy
+  - accumulation
+  - support
+  - strong
+  - moon
+  - green
+  - profit
+  - target
+  - bounce
+  - recovery
+  - higher
+  - strength
   bearish:
-    - bearish
-    - breakdown
-    - downside
-    - crash
-    - fall
-    - short
-    - sell
-    - distribution
-    - resistance
-    - weak
-    - dump
-    - red
-    - loss
-    - stoploss
-    - sl
-    - panic
-    - lower
-    - weakness
-    - correction
-
+  - bearish
+  - breakdown
+  - downside
+  - crash
+  - fall
+  - short
+  - sell
+  - distribution
+  - resistance
+  - weak
+  - dump
+  - red
+  - loss
+  - stoploss
+  - sl
+  - panic
+  - lower
+  - weakness
+  - correction
 logging:
   level: INFO
-  format: "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+  format: '%(asctime)s | %(levelname)s | %(name)s | %(message)s'
