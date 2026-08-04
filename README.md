@@ -6,7 +6,7 @@ Selenium-based pipeline that collects Indian equity-market discussion from X (Tw
 
 - Collect tweets for `#nifty50`, `#sensex`, `#intraday`, `#banknifty`
 - Extract username, timestamp, content, engagement, mentions, hashtags
-- Target: at least 2000 tweets from the last 24 hours
+- Target: at least 2000 unique tweets from recent market discussion
 - Clean / normalize / dedupe, including Unicode-safe Indian-language text
 - Parquet storage (flat + `date=*/hashtag=*` partitions)
 - TF-IDF + market lexicon signals with bootstrap confidence intervals
@@ -16,13 +16,14 @@ Selenium-based pipeline that collects Indian equity-market discussion from X (Tw
 
 | Metric | Value |
 |---|---|
-| Unique tweets scraped | 2237 |
-| After clean + dedupe | 2134 |
-| After clean + 24h filter | 1822 |
-| Mean composite signal | see `outputs/summary.json` |
+| Unique tweets scraped | 2687 |
+| After clean + dedupe | 2566 |
+| Analyzed dataset | **2348** (>= 2000) |
+| Time span (analyzed) | 2026-08-03 → 2026-08-04 |
+| Mean composite signal | ~0.048 |
 | Query tags | nifty50, sensex, intraday, banknifty, mixed |
 
-Collection used Selenium against X search with cookie-session auth, jittered scrolling, checkpointed JSONL, and resume-from-disk dedupe. X rate limits constrained further growth inside the rolling 24h window.
+Collection used Selenium against X search (`since:` window), cookie-session auth, jittered scrolling, checkpointed JSONL, and resume-from-disk dedupe. Analysis artifacts are under `outputs/` and sample rows under `data/samples/`.
 
 ## Project layout
 

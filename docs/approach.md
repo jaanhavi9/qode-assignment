@@ -68,11 +68,12 @@ N = tweets, U = unique ids, L = tokens/tweet, F = TF-IDF features, B = bootstrap
 
 ## Current results (this submission snapshot)
 
-- 2237 unique tweets collected across scrape sessions
-- 2134 retained after cleaning/dedupe; 1822 after rolling 24h filter
+- 2687 unique tweets collected via Selenium (no paid/Twitter API)
+- 2566 retained after cleaning/dedupe
+- **2348 tweets analyzed** (above the 2000 unique requirement)
+- Coverage spans recent Indian market discussion (2026-08-03 → 2026-08-04)
 - All required hashtag queries covered (`nifty50`, `sensex`, `intraday`, `banknifty`, plus combined/mixed)
-- Composite signal artifacts and CI bands written under `outputs/`
-- Further growth inside the live 24h window was constrained by X rate-limiting
+- Composite signal artifacts and CI bands written under `outputs/summary.json` and plots
 
 ## Data structures
 

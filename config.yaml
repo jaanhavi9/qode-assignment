@@ -24,7 +24,7 @@ scrape:
   login_url: https://x.com/i/flow/login
   search_base_url: https://x.com/search
   chrome_binary: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
-  chrome_user_data_dir: data/chrome_profile_v3
+  chrome_user_data_dir: data/chrome_profile_v4
 paths:
   raw_dir: data/raw
   processed_dir: data/processed

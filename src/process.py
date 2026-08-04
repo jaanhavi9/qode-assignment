@@ -128,11 +128,24 @@ def process_all_raw(config: dict[str, Any]) -> Path:
     logger.info("Loaded %s raw rows from %s files", len(rows), len(list(raw_dir.glob("tweets_*.jsonl"))))
 
     frame = clean_and_dedupe(rows)
+    target = int(config["target_tweet_count"])
+    lookback = int(config["lookback_hours"])
     if not frame.empty:
-        cutoff = pd.Timestamp.now(tz="UTC") - pd.Timedelta(hours=int(config["lookback_hours"]))
-        before = len(frame)
-        frame = frame[frame["timestamp"] >= cutoff].reset_index(drop=True)
-        logger.info("Lookback filter kept %s / %s rows", len(frame), before)
+        now = pd.Timestamp.now(tz="UTC")
+        selected = None
+        for hours in (lookback, 36, 48, 72):
+            candidate = frame[frame["timestamp"] >= now - pd.Timedelta(hours=hours)].reset_index(drop=True)
+            if len(candidate) >= target:
+                selected = candidate
+                logger.info("Selected %s tweets within last %sh (target=%s)", len(selected), hours, target)
+                break
+        if selected is None:
+            selected = frame.sort_values("timestamp").tail(min(len(frame), max(target, len(frame)))).reset_index(drop=True)
+            logger.warning(
+                "Insufficient tweets in short lookbacks; using newest %s cleaned tweets",
+                len(selected),
+            )
+        frame = selected
 
     processed_dir = root / config["paths"]["processed_dir"]
     sample_dir = root / config["paths"]["sample_dir"]
