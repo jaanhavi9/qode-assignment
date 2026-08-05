@@ -14,6 +14,7 @@ data/raw/*
 data/processed/*
 !data/processed/.gitkeep
 data/chrome_profile/
+data/chrome_profile_v*/
 outputs/*
 !outputs/.gitkeep
 !outputs/*.png
