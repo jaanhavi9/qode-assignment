@@ -331,13 +331,13 @@ def _load_existing_ids(raw_dir: Path) -> OrderedDict[str, None]:
 
 
 def _build_queries(hashtags: list[str], since_date: str, combined: bool) -> list[tuple[str, str]]:
+    # Prefer one combined query first to reduce search navigations / rate-limit pressure.
     queries: list[tuple[str, str]] = []
     if combined and len(hashtags) > 1:
         joined = " OR ".join(f"#{tag}" for tag in hashtags)
         queries.append(("mixed", f"({joined}) since:{since_date}"))
     for tag in hashtags:
         queries.append((tag, f"#{tag} since:{since_date}"))
-        queries.append((tag, f"#{tag} lang:en since:{since_date}"))
     return queries
 
 
@@ -428,9 +428,18 @@ def collect_tweets(config: dict[str, Any]) -> Path:
     hashtags = config["hashtags"]
     tabs = scrape_cfg.get("search_tabs", ["live"])
     queries = _build_queries(hashtags, since_date, bool(scrape_cfg.get("use_combined_query", False)))
+    max_rounds = int(scrape_cfg.get("max_query_rounds", 8))
+    empty_backoff = float(scrape_cfg.get("empty_query_backoff_sec", 90))
+    query_pause = float(scrape_cfg.get("query_pause_sec", 20))
+    round_pause = float(scrape_cfg.get("between_round_pause_sec", 120))
 
-    seen = _load_existing_ids(raw_dir)
-    logger.info("Resuming with %s tweets already collected", len(seen))
+    if scrape_cfg.get("resume_from_existing", False):
+        seen = _load_existing_ids(raw_dir)
+        logger.info("Resuming with %s tweets already collected", len(seen))
+    else:
+        seen = OrderedDict()
+        logger.info("Single-run scrape starting fresh (target=%s)", target)
+
     buffer: list[dict[str, Any]] = []
     driver: webdriver.Chrome | None = None
 
@@ -451,91 +460,140 @@ def collect_tweets(config: dict[str, Any]) -> Path:
         _login(driver, config)
         return driver
 
+    def flush() -> None:
+        nonlocal buffer
+        _append_checkpoint(out_path, buffer)
+        buffer.clear()
+
     try:
         ensure_driver()
 
-        for tag, query in queries:
+        for round_idx in range(1, max_rounds + 1):
             if len(seen) >= target:
                 break
-            for tab in tabs:
+            logger.info(
+                "Query round %s/%s (unique=%s/%s)",
+                round_idx,
+                max_rounds,
+                len(seen),
+                target,
+            )
+
+            for tag, query in queries:
                 if len(seen) >= target:
                     break
-
-                url = _search_url(query, scrape_cfg["search_base_url"], tab)
-                logger.info("Scraping tag=%s tab=%s (%s)", tag, tab, url)
-
-                try:
-                    active = ensure_driver()
-                    active.get(url)
-                    time.sleep(scrape_cfg["scroll_pause_sec"])
-                    wait = _wait(active, scrape_cfg["explicit_wait_sec"])
-                    wait.until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, 'article[data-testid="tweet"]'))
-                    )
-                except TimeoutException:
-                    logger.warning("No tweets rendered for tag=%s tab=%s", tag, tab)
-                    continue
-                except (InvalidSessionIdException, WebDriverException) as exc:
-                    logger.warning("Navigation failed (%s); recovering session", exc.__class__.__name__)
-                    ensure_driver()
-                    continue
-
-                idle_scrolls = 0
-                last_count = len(seen)
-
-                while len(seen) < target and idle_scrolls < scrape_cfg["max_idle_scrolls"]:
-                    try:
-                        active = ensure_driver()
-                        articles = active.find_elements(By.CSS_SELECTOR, 'article[data-testid="tweet"]')
-                        scraped_at = datetime.now(timezone.utc).isoformat()
-
-                        for article in articles:
-                            if len(seen) >= target:
-                                break
-                            try:
-                                row = _extract_tweet(article, tag, scraped_at)
-                            except StaleElementReferenceException:
-                                continue
-                            if row is None or row["tweet_id"] in seen:
-                                continue
-                            seen[row["tweet_id"]] = None
-                            buffer.append(row)
-
-                            if len(buffer) >= scrape_cfg["checkpoint_every"]:
-                                _append_checkpoint(out_path, buffer)
-                                logger.info(
-                                    "Checkpointed %s tweets (unique=%s)", len(buffer), len(seen)
-                                )
-                                buffer.clear()
-
-                        active.execute_script("window.scrollBy(0, document.body.scrollHeight);")
-                        pause = scrape_cfg["scroll_pause_sec"] + random.uniform(
-                            0, scrape_cfg["scroll_pause_jitter_sec"]
-                        )
-                        time.sleep(pause)
-                    except (InvalidSessionIdException, WebDriverException) as exc:
-                        logger.warning("Scroll loop interrupted (%s); recovering", exc.__class__.__name__)
-                        _append_checkpoint(out_path, buffer)
-                        buffer.clear()
-                        ensure_driver()
+                for tab in tabs:
+                    if len(seen) >= target:
                         break
 
-                    if len(seen) == last_count:
-                        idle_scrolls += 1
-                    else:
-                        idle_scrolls = 0
-                        last_count = len(seen)
+                    url = _search_url(query, scrape_cfg["search_base_url"], tab)
+                    logger.info("Scraping tag=%s tab=%s (%s)", tag, tab, url)
 
-                    logger.info(
-                        "tag=%s tab=%s progress: unique=%s idle_scrolls=%s",
-                        tag,
-                        tab,
-                        len(seen),
-                        idle_scrolls,
-                    )
+                    try:
+                        active = ensure_driver()
+                        active.get(url)
+                        time.sleep(scrape_cfg["scroll_pause_sec"])
+                        wait = _wait(active, scrape_cfg["explicit_wait_sec"])
+                        wait.until(
+                            EC.presence_of_element_located(
+                                (By.CSS_SELECTOR, 'article[data-testid="tweet"]')
+                            )
+                        )
+                    except TimeoutException:
+                        logger.warning(
+                            "No tweets rendered for tag=%s tab=%s; backing off %.0fs",
+                            tag,
+                            tab,
+                            empty_backoff,
+                        )
+                        time.sleep(empty_backoff)
+                        continue
+                    except (InvalidSessionIdException, WebDriverException) as exc:
+                        logger.warning(
+                            "Navigation failed (%s); recovering session",
+                            exc.__class__.__name__,
+                        )
+                        time.sleep(query_pause)
+                        ensure_driver()
+                        continue
 
-        _append_checkpoint(out_path, buffer)
-        buffer.clear()
+                    idle_scrolls = 0
+                    last_count = len(seen)
+
+                    while len(seen) < target and idle_scrolls < scrape_cfg["max_idle_scrolls"]:
+                        try:
+                            active = ensure_driver()
+                            articles = active.find_elements(
+                                By.CSS_SELECTOR, 'article[data-testid="tweet"]'
+                            )
+                            scraped_at = datetime.now(timezone.utc).isoformat()
+
+                            for article in articles:
+                                if len(seen) >= target:
+                                    break
+                                try:
+                                    row = _extract_tweet(article, tag, scraped_at)
+                                except StaleElementReferenceException:
+                                    continue
+                                if row is None or row["tweet_id"] in seen:
+                                    continue
+                                seen[row["tweet_id"]] = None
+                                buffer.append(row)
+
+                                if len(buffer) >= scrape_cfg["checkpoint_every"]:
+                                    flush()
+                                    logger.info(
+                                        "Checkpointed tweets (unique=%s/%s)",
+                                        len(seen),
+                                        target,
+                                    )
+
+                            active.execute_script(
+                                "window.scrollBy(0, document.body.scrollHeight);"
+                            )
+                            pause = scrape_cfg["scroll_pause_sec"] + random.uniform(
+                                0, scrape_cfg["scroll_pause_jitter_sec"]
+                            )
+                            time.sleep(pause)
+                        except (InvalidSessionIdException, WebDriverException) as exc:
+                            logger.warning(
+                                "Scroll loop interrupted (%s); recovering",
+                                exc.__class__.__name__,
+                            )
+                            flush()
+                            time.sleep(query_pause)
+                            ensure_driver()
+                            break
+
+                        if len(seen) == last_count:
+                            idle_scrolls += 1
+                        else:
+                            idle_scrolls = 0
+                            last_count = len(seen)
+
+                        logger.info(
+                            "tag=%s tab=%s progress: unique=%s idle_scrolls=%s",
+                            tag,
+                            tab,
+                            len(seen),
+                            idle_scrolls,
+                        )
+
+                    # Cool down between search navigations to avoid X rate limits.
+                    if len(seen) < target:
+                        logger.info("Query pause %.0fs before next search", query_pause)
+                        time.sleep(query_pause)
+
+            if len(seen) < target and round_idx < max_rounds:
+                logger.info(
+                    "Round complete at %s/%s; sleeping %.0fs before next round",
+                    len(seen),
+                    target,
+                    round_pause,
+                )
+                time.sleep(round_pause)
+
+        flush()
     finally:
         if driver is not None:
             try:
@@ -550,4 +608,6 @@ def collect_tweets(config: dict[str, Any]) -> Path:
             len(seen),
             target,
         )
+    else:
+        logger.info("Single-run target met: %s unique tweets", len(seen))
     return out_path

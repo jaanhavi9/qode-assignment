@@ -23,7 +23,7 @@ Selenium-based pipeline that collects Indian equity-market discussion from X (Tw
 | Mean composite signal | ~0.048 |
 | Query tags | nifty50, sensex, intraday, banknifty, mixed |
 
-Collection used Selenium against X search (`since:` window), cookie-session auth, jittered scrolling, checkpointed JSONL, and resume-from-disk dedupe. Analysis artifacts are under `outputs/` and sample rows under `data/samples/`.
+Collection used Selenium against X search (`since:` window), cookie-session auth, rate-limit-aware pacing (scroll / query / round sleeps), checkpointed JSONL, and a single-run collector that continues until 2000 unique tweets. Analysis artifacts are under `outputs/` and sample rows under `data/samples/`.
 
 ## Project layout
 
@@ -83,7 +83,7 @@ python -m src.run process
 python -m src.run analyze
 ```
 
-Leave the Selenium Chrome window open during `collect`. Collection resumes from existing raw files until `target_tweet_count` or query exhaustion.
+Leave the Selenium Chrome window open during `collect`. By default `resume_from_existing` is `false`, so one `collect` invocation starts fresh and keeps going (with configured sleeps) until `target_tweet_count` (2000) is reached in a single run.
 
 ## Outputs
 

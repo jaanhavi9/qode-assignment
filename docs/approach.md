@@ -10,7 +10,7 @@ Build a market-intelligence pipeline for Indian equities discussion on X under a
 collect (Selenium) -> process (clean/dedupe/Parquet) -> analyze (TF-IDF + lexicon + CI + plots)
 ```
 
-Stages are independently runnable via `python -m src.run <stage>`. Raw JSONL checkpoints make collection crash-safe. Processing merges every `data/raw/tweets_*.jsonl` file, so later scrape passes accumulate toward the target.
+Stages are independently runnable via `python -m src.run <stage>`. Raw JSONL checkpoints make collection crash-safe. Default collection is a single continuous run to `target_tweet_count`.
 
 ## Collection
 
@@ -19,12 +19,15 @@ Stages are independently runnable via `python -m src.run <stage>`. Raw JSONL che
   - `cookies`: inject `auth_token` + `ct0` from a normal browser session
   - `manual`: operator completes login in the Selenium window
   - `auto`: username/password from environment variables
-- Search queries scoped with `since:YYYY-MM-DD` for the lookback window.
-- Combined OR query plus per-hashtag Live/Latest tabs to improve coverage.
-- In-memory ordered set keyed by `tweet_id` for O(1) dedup while scrolling.
-- Randomized scroll delays and automation-marker reduction for anti-bot friction.
+- Single-run mode by default (`resume_from_existing: false`): one `collect` process starts at 0 and continues until 2000 unique tweets.
+- Search queries scoped with `since:YYYY-MM-DD`; combined OR query first, then per-hashtag Live/Latest tabs across multiple rounds.
+- Rate-limit pacing (tunable in `config.yaml`):
+  - scroll sleep + jitter between infinite-scroll steps
+  - pause between search navigations (`query_pause_sec`)
+  - longer backoff when a search page renders empty (`empty_query_backoff_sec`)
+  - cool-down between full query rounds (`between_round_pause_sec`)
+- In-memory ordered set keyed by `tweet_id` for O(1) ingest dedupe.
 - Checkpoint writes every N tweets; session recovery restarts Chrome if the browser disconnects.
-- Existing raw IDs are loaded on resume so top-up runs do not re-store duplicates.
 
 ## Processing and storage
 
@@ -86,5 +89,5 @@ N = tweets, U = unique ids, L = tokens/tweet, F = TF-IDF features, B = bootstrap
 
 - X DOM/login challenges change frequently: selectors centralized; checkpoints preserve partial runs.
 - Account login lockouts: cookie injection from a healthy browser session avoids the login form.
-- Rate limits: jittered delays, multi-query/tab strategy, resume-from-disk collection.
+- Rate limits: jittered scroll delays, query pauses, empty-page backoff, multi-round cool-downs.
 - Secrets never committed; only `.env.example` is tracked.
